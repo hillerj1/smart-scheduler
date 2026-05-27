@@ -84,10 +84,12 @@ npm install
 
 ### 5. Configure environment variables
 Create a `.env.local` file in the root:
-GEMINI_API_KEY=AIzaSyDXNd7pFiymsWumSBwy2EIUtrE-RC_GKc8
-GOOGLE_CLIENT_ID=25778898905-b4mg12lbs2k3tqkqgio0qt2hucgb4k7k.apps.googleusercontent.com
-GOOGLE_CLIENT_SECRET=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
-GOOGLE_REDIRECT_URI=http://localhost:3000/api/auth/callback ### 6. Run locally
+GEMINI_API_KEY=your_gemini_key
+GOOGLE_CLIENT_ID=your_oauth_client_id
+GOOGLE_CLIENT_SECRET=your_oauth_client_secret
+GOOGLE_REDIRECT_URI=http://localhost:3000/api/auth/callbacklocally
+
+### 6. Run locally
 ```bash
 npm run dev
 ```
