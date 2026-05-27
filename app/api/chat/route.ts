@@ -1,6 +1,5 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { NextRequest, NextResponse } from 'next/server';
-import { getAvailableSlots, createEvent } from '@/lib/calendar';
 import { calendarTools, SYSTEM_PROMPT } from '@/lib/tools';
 import { getAvailableSlots, createEvent, getEventByName } from '@/lib/calendar';
 
