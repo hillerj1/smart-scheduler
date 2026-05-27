@@ -1,5 +1,7 @@
 import { google } from 'googleapis';
 
+const TIMEZONE = 'America/New_York';
+
 export function getOAuthClient(tokens: any) {
   const oauth2Client = new google.auth.OAuth2(
     process.env.GOOGLE_CLIENT_ID,
@@ -23,6 +25,15 @@ export function getAuthUrl() {
   });
 }
 
+// Pad numbers to 2 digits for ISO string construction
+const pad = (n: number) => String(n).padStart(2, '0');
+
+// Build a local datetime string without UTC conversion
+// e.g. "2026-05-27T09:00:00" — Google Calendar interprets this in the given timeZone
+function toLocalDateTimeString(year: number, month: number, day: number, hour: number, minute: number) {
+  return `${year}-${pad(month)}-${pad(day)}T${pad(hour)}:${pad(minute)}:00`;
+}
+
 export async function getAvailableSlots(
   tokens: any,
   date: string,
@@ -31,86 +42,89 @@ export async function getAvailableSlots(
   const auth = getOAuthClient(tokens);
   const calendar = google.calendar({ version: 'v3', auth });
 
-  // Set up time range for the requested day
   const [year, month, day] = date.split('-').map(Number);
-  const startOfDay = new Date(year, month - 1, day, 8, 0, 0);
-  const endOfDay = new Date(year, month - 1, day, 20, 0, 0);
 
-  // Get busy times
+  // Build start/end of day as local time strings
+  const startStr = toLocalDateTimeString(year, month, day, 8, 0);
+  const endStr = toLocalDateTimeString(year, month, day, 20, 0);
+
   const freeBusy = await calendar.freebusy.query({
     requestBody: {
-      timeMin: startOfDay.toISOString(),
-      timeMax: endOfDay.toISOString(),
-      timeZone: 'America/New_York',
+      timeMin: startStr + '-04:00',
+      timeMax: endStr + '-04:00',
+      timeZone: TIMEZONE,
       items: [{ id: 'primary' }],
     },
   });
 
   const busySlots = freeBusy.data.calendars?.primary?.busy || [];
 
-  // Find free slots
   const freeSlots: string[] = [];
-  let current = new Date(startOfDay);
 
-  while (current.getTime() + durationMinutes * 60000 <= endOfDay.getTime()) {
-    const slotEnd = new Date(current.getTime() + durationMinutes * 60000);
+  // Check every 30 min slot from 8am to 8pm
+  for (let hour = 8; hour < 20; hour++) {
+    for (let min = 0; min < 60; min += 30) {
+      const slotStartMinutes = hour * 60 + min;
+      const slotEndMinutes = slotStartMinutes + durationMinutes;
 
-    const isConflict = busySlots.some((busy) => {
-      const busyStart = new Date(busy.start!);
-      const busyEnd = new Date(busy.end!);
-      return current < busyEnd && slotEnd > busyStart;
-    });
+      if (slotEndMinutes > 20 * 60) break;
 
-    if (!isConflict) {
-      freeSlots.push(
-        current.toLocaleTimeString('en-US', {
-          hour: 'numeric',
-          minute: '2-digit',
-          hour12: true,
-        })
-      );
+      const slotStart = new Date(`${date}T${pad(hour)}:${pad(min)}:00-04:00`);
+      const slotEnd = new Date(slotStart.getTime() + durationMinutes * 60000);
+
+      const isConflict = busySlots.some((busy) => {
+        const busyStart = new Date(busy.start!);
+        const busyEnd = new Date(busy.end!);
+        return slotStart < busyEnd && slotEnd > busyStart;
+      });
+
+      if (!isConflict) {
+        // Format time for display
+        const displayHour = hour > 12 ? hour - 12 : hour === 0 ? 12 : hour;
+        const ampm = hour >= 12 ? 'PM' : 'AM';
+        freeSlots.push(`${displayHour}:${pad(min)} ${ampm}`);
+      }
     }
-
-    // Move forward 30 min
-    current = new Date(current.getTime() + 30 * 60000);
   }
 
   return freeSlots;
 }
 
 export async function createEvent(
-    tokens: any,
-    date: string,
-    time: string,
-    durationMinutes: number,
-    title: string = 'Meeting'
-  ) {
-    const auth = getOAuthClient(tokens);
-    const calendar = google.calendar({ version: 'v3', auth });
-  
-    const [hourStr, minuteStr] = time.replace(/(AM|PM)/i, '').trim().split(':');
-    let hour = parseInt(hourStr);
-    const minute = parseInt(minuteStr || '0');
-    if (time.toUpperCase().includes('PM') && hour !== 12) hour += 12;
-    if (time.toUpperCase().includes('AM') && hour === 12) hour = 0;
-  
-    const [year, month, day] = date.split('-').map(Number);
-  
-    // Format as local time string without UTC conversion
-    // This tells Google Calendar the exact local time regardless of server timezone
-    const pad = (n: number) => String(n).padStart(2, '0');
-    const startStr = `${year}-${pad(month)}-${pad(day)}T${pad(hour)}:${pad(minute)}:00`;
-    const endDate = new Date(year, month - 1, day, hour, minute + durationMinutes);
-    const endStr = `${endDate.getFullYear()}-${pad(endDate.getMonth() + 1)}-${pad(endDate.getDate())}T${pad(endDate.getHours())}:${pad(endDate.getMinutes())}:00`;
-  
-    const event = await calendar.events.insert({
-      calendarId: 'primary',
-      requestBody: {
-        summary: title,
-        start: { dateTime: startStr, timeZone: 'America/New_York' },
-        end: { dateTime: endStr, timeZone: 'America/New_York' },
-      },
-    });
-  
-    return event.data;
-  }
+  tokens: any,
+  date: string,
+  time: string,
+  durationMinutes: number,
+  title: string = 'Meeting'
+) {
+  const auth = getOAuthClient(tokens);
+  const calendar = google.calendar({ version: 'v3', auth });
+
+  const [hourStr, minuteStr] = time.replace(/(AM|PM)/i, '').trim().split(':');
+  let hour = parseInt(hourStr);
+  const minute = parseInt(minuteStr || '0');
+  if (time.toUpperCase().includes('PM') && hour !== 12) hour += 12;
+  if (time.toUpperCase().includes('AM') && hour === 12) hour = 0;
+
+  const [year, month, day] = date.split('-').map(Number);
+
+  // Build end time
+  const totalMinutes = hour * 60 + minute + durationMinutes;
+  const endHour = Math.floor(totalMinutes / 60);
+  const endMin = totalMinutes % 60;
+
+  // Use local datetime strings with explicit timezone — avoids UTC conversion issues
+  const startStr = toLocalDateTimeString(year, month, day, hour, minute);
+  const endStr = toLocalDateTimeString(year, month, day, endHour, endMin);
+
+  const event = await calendar.events.insert({
+    calendarId: 'primary',
+    requestBody: {
+      summary: title,
+      start: { dateTime: startStr, timeZone: TIMEZONE },
+      end: { dateTime: endStr, timeZone: TIMEZONE },
+    },
+  });
+
+  return event.data;
+}
