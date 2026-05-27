@@ -128,3 +128,38 @@ export async function createEvent(
 
   return event.data;
 }
+
+export async function getEventByName(
+  tokens: any,
+  eventName: string
+) {
+  const auth = getOAuthClient(tokens);
+  const calendar = google.calendar({ version: 'v3', auth });
+
+  // Search calendar for events matching the name
+  // Look 60 days forward to catch upcoming events
+  const now = new Date();
+  const future = new Date(now.getTime() + 60 * 24 * 60 * 60000);
+
+  const events = await calendar.events.list({
+    calendarId: 'primary',
+    timeMin: now.toISOString(),
+    timeMax: future.toISOString(),
+    q: eventName, // Google Calendar's built-in text search
+    singleEvents: true,
+    orderBy: 'startTime',
+    maxResults: 3,
+  });
+
+  const items = events.data.items || [];
+  if (items.length === 0) return null;
+
+  // Return the first matching event
+  const event = items[0];
+  const start = event.start?.dateTime || event.start?.date;
+  return {
+    title: event.summary,
+    date: start ? new Date(start).toISOString().split('T')[0] : null,
+    dateTime: start,
+  };
+}

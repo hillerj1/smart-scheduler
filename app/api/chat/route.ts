@@ -2,6 +2,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import { NextRequest, NextResponse } from 'next/server';
 import { getAvailableSlots, createEvent } from '@/lib/calendar';
 import { calendarTools, SYSTEM_PROMPT } from '@/lib/tools';
+import { getAvailableSlots, createEvent, getEventByName } from '@/lib/calendar';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
@@ -61,7 +62,15 @@ export async function POST(request: NextRequest) {
           (typedArgs.title as string) || 'Meeting'
         );
         toolResult = `Successfully created event: ${event.summary} on ${event.start?.dateTime}`;
-      }else {
+      } else if (name === 'get_event_by_name') {
+        const event = await getEventByName(
+          tokens,
+          typedArgs.event_name as string
+        );
+        toolResult = event
+          ? `Found event: "${event.title}" on ${event.date}`
+          : `No event found matching "${typedArgs.event_name}"`;
+      } else {
         toolResult = 'Unknown tool';
       }
 
