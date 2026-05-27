@@ -37,8 +37,22 @@ export default function Home() {
   const speak = useCallback((text: string) => {
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = 1.05;
-    utterance.pitch = 1;
+    
+    // Pick the best available voice — prefer natural-sounding English voices
+    const voices = window.speechSynthesis.getVoices();
+    const preferred = voices.find(v => v.name.includes('Samantha')) ||
+      voices.find(v => v.name.includes('Google US English')) ||
+      voices.find(v => v.name.includes('Karen')) ||
+      voices.find(v => v.lang === 'en-US' && v.localService) ||
+      voices.find(v => v.lang === 'en-US');
+    
+    if (preferred) utterance.voice = preferred;
+    
+    // Slightly slower and lower pitch sounds more natural than default
+    utterance.rate = 0.95;
+    utterance.pitch = 0.9;
+    utterance.volume = 1;
+    
     utterance.onstart = () => setIsSpeaking(true);
     utterance.onend = () => setIsSpeaking(false);
     window.speechSynthesis.speak(utterance);
