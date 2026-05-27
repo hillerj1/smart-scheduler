@@ -1,20 +1,19 @@
-export const calendarTools = [
+import { SchemaType, FunctionDeclaration } from '@google/generative-ai';
+
+export const calendarTools: FunctionDeclaration[] = [
   {
     name: "get_available_slots",
-    description:
-      "Get available time slots on a specific date for a meeting of a given duration. Use this when the user wants to find a free time to meet. If no slots are found, automatically call this again on nearby dates to suggest alternatives.",
+    description: "Get available time slots on a specific date for a meeting of a given duration. If no slots are found, automatically call this again on nearby dates to suggest alternatives.",
     parameters: {
-      type: "object",
+      type: SchemaType.OBJECT,
       properties: {
         date: {
-          type: "string",
-          description:
-            "The date to check availability for, in YYYY-MM-DD format. Convert relative dates like 'tomorrow' or 'next Tuesday' to this format based on today's date.",
+          type: SchemaType.STRING,
+          description: "The date to check availability for, in YYYY-MM-DD format.",
         },
         duration_minutes: {
-          type: "number",
-          description:
-            "The duration of the meeting in minutes. Convert hours to minutes (e.g. 1 hour = 60 minutes).",
+          type: SchemaType.NUMBER,
+          description: "The duration of the meeting in minutes.",
         },
       },
       required: ["date", "duration_minutes"],
@@ -22,27 +21,25 @@ export const calendarTools = [
   },
   {
     name: "create_calendar_event",
-    description:
-      "Create a calendar event once the user has confirmed a specific time. Only call this after the user has explicitly confirmed the time they want.",
+    description: "Create a calendar event once the user has confirmed a specific time. Only call this after the user has explicitly confirmed.",
     parameters: {
-      type: "object",
+      type: SchemaType.OBJECT,
       properties: {
         date: {
-          type: "string",
+          type: SchemaType.STRING,
           description: "The date of the event in YYYY-MM-DD format.",
         },
         time: {
-          type: "string",
+          type: SchemaType.STRING,
           description: "The start time of the event, e.g. '2:00 PM'.",
         },
         duration_minutes: {
-          type: "number",
+          type: SchemaType.NUMBER,
           description: "The duration of the meeting in minutes.",
         },
         title: {
-          type: "string",
-          description:
-            "The title of the meeting. Ask the user if not provided, default to 'Meeting'.",
+          type: SchemaType.STRING,
+          description: "The title of the meeting. Default to 'Meeting' if not provided.",
         },
       },
       required: ["date", "time", "duration_minutes"],
