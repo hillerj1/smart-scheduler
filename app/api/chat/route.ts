@@ -39,28 +39,29 @@ export async function POST(request: NextRequest) {
     while (response.functionCalls()?.length) {
       const functionCall = response.functionCalls()![0];
       const { name, args } = functionCall;
-
+      const typedArgs = args as Record<string, unknown>;
+      
       let toolResult;
-
+      
       if (name === 'get_available_slots') {
         const slots = await getAvailableSlots(
           tokens,
-          args.date as string,
-          args.duration_minutes as number
+          typedArgs.date as string,
+          typedArgs.duration_minutes as number
         );
         toolResult = slots.length > 0
           ? `Available slots: ${slots.join(', ')}`
-          : `No available slots found on ${args.date}`;
+          : `No available slots found on ${typedArgs.date}`;
       } else if (name === 'create_calendar_event') {
         const event = await createEvent(
           tokens,
-          args.date as string,
-          args.time as string,
-          args.duration_minutes as number,
-          (args.title as string) || 'Meeting'
+          typedArgs.date as string,
+          typedArgs.time as string,
+          typedArgs.duration_minutes as number,
+          (typedArgs.title as string) || 'Meeting'
         );
         toolResult = `Successfully created event: ${event.summary} on ${event.start?.dateTime}`;
-      } else {
+      }else {
         toolResult = 'Unknown tool';
       }
 
