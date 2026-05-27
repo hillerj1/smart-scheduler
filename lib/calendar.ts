@@ -79,39 +79,38 @@ export async function getAvailableSlots(
 }
 
 export async function createEvent(
-  tokens: any,
-  date: string,
-  time: string,
-  durationMinutes: number,
-  title: string = 'Meeting'
-) {
-  const auth = getOAuthClient(tokens);
-  const calendar = google.calendar({ version: 'v3', auth });
-
-  const [hourStr, minuteStr] = time.replace(/(AM|PM)/, '').trim().split(':');
-  let hour = parseInt(hourStr);
-  const minute = parseInt(minuteStr || '0');
-  if (time.includes('PM') && hour !== 12) hour += 12;
-  if (time.includes('AM') && hour === 12) hour = 0;
-
-  const [year, month, day] = date.split('-').map(Number);
-  const start = new Date(year, month - 1, day, hour, minute, 0);
-  const end = new Date(start.getTime() + durationMinutes * 60000);
-
-  const event = await calendar.events.insert({
-    calendarId: 'primary',
-    requestBody: {
-      summary: title,
-      start: { 
-        dateTime: start.toISOString(),
-        timeZone: 'America/New_York'
+    tokens: any,
+    date: string,
+    time: string,
+    durationMinutes: number,
+    title: string = 'Meeting'
+  ) {
+    const auth = getOAuthClient(tokens);
+    const calendar = google.calendar({ version: 'v3', auth });
+  
+    const [hourStr, minuteStr] = time.replace(/(AM|PM)/i, '').trim().split(':');
+    let hour = parseInt(hourStr);
+    const minute = parseInt(minuteStr || '0');
+    if (time.toUpperCase().includes('PM') && hour !== 12) hour += 12;
+    if (time.toUpperCase().includes('AM') && hour === 12) hour = 0;
+  
+    const [year, month, day] = date.split('-').map(Number);
+  
+    // Format as local time string without UTC conversion
+    // This tells Google Calendar the exact local time regardless of server timezone
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const startStr = `${year}-${pad(month)}-${pad(day)}T${pad(hour)}:${pad(minute)}:00`;
+    const endDate = new Date(year, month - 1, day, hour, minute + durationMinutes);
+    const endStr = `${endDate.getFullYear()}-${pad(endDate.getMonth() + 1)}-${pad(endDate.getDate())}T${pad(endDate.getHours())}:${pad(endDate.getMinutes())}:00`;
+  
+    const event = await calendar.events.insert({
+      calendarId: 'primary',
+      requestBody: {
+        summary: title,
+        start: { dateTime: startStr, timeZone: 'America/New_York' },
+        end: { dateTime: endStr, timeZone: 'America/New_York' },
       },
-      end: { 
-        dateTime: end.toISOString(),
-        timeZone: 'America/New_York'
-      },
-    },
-  });
-
-  return event.data;
-}
+    });
+  
+    return event.data;
+  }
