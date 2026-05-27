@@ -41,6 +41,7 @@ export async function getAvailableSlots(
     requestBody: {
       timeMin: startOfDay.toISOString(),
       timeMax: endOfDay.toISOString(),
+      timeZone: 'America/New_York',
       items: [{ id: 'primary' }],
     },
   });
@@ -101,8 +102,14 @@ export async function createEvent(
     calendarId: 'primary',
     requestBody: {
       summary: title,
-      start: { dateTime: start.toISOString() },
-      end: { dateTime: end.toISOString() },
+      start: { 
+        dateTime: start.toISOString(),
+        timeZone: 'America/New_York'
+      },
+      end: { 
+        dateTime: end.toISOString(),
+        timeZone: 'America/New_York'
+      },
     },
   });
 
