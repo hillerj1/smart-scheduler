@@ -11,7 +11,7 @@ export default function Home() {
   const [messages, setMessages] = useState<Message[]>([
     {
       role: 'assistant',
-      content: "Hi! I'm your scheduling assistant. I can help you find and book a meeting time. What would you like to schedule?",
+      content: "Hi! I'm Maya, your scheduling assistant. To get started, please connect your Google Calendar using the button in the top right!",
     },
   ]);
   const [input, setInput] = useState('');
@@ -27,6 +27,12 @@ export default function Home() {
     const cookies = document.cookie.split(';');
     const hasTokens = cookies.some((c) => c.trim().startsWith('google_tokens='));
     setIsAuthenticated(hasTokens);
+    if (hasTokens) {
+      setMessages([{
+        role: 'assistant',
+        content: "Hi! I'm Maya, your scheduling assistant. I can help you find and book a meeting time. What would you like to schedule?",
+      }]);
+    }
   }, []);
 
   useEffect(() => {
