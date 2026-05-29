@@ -118,3 +118,67 @@ Open [http://localhost:3000](http://localhost:3000) and click **Connect Google C
 
 **Mid-conversation changes:**
 > "Find a 30 minute slot tomorrow" → "Actually make it an hour, do those times still work?"
+
+## Architecture
+
+    +------------------------------------------------------------------+
+    |                        CLIENT (Browser)                          |
+    |                                                                  |
+    |   +------------------+          +---------------------------+   |
+    |   |  Web Speech API  |          |   React UI (Next.js)      |   |
+    |   |  (STT / TTS)     |<-------->|   page.tsx                |   |
+    |   |  Browser-native  |          |   Hold mic to speak       |   |
+    |   +------------------+          +-------------+-------------+   |
+    |                                               |                  |
+    |                                    POST /api/chat                |
+    +-----------------------------------------------+------------------+
+                                                    |
+                                                    v
+    +------------------------------------------------------------------+
+    |                   SERVER (Vercel / Next.js)                      |
+    |                                                                  |
+    |   +------------------------------------------------------------+ |
+    |   |                  /api/chat/route.ts                        | |
+    |   |                                                            | |
+    |   |  1. Receive message + conversation history                 | |
+    |   |  2. Send to Gemini with tools + system prompt              | |
+    |   |  3. Execute tool calls if Gemini requests them             | |
+    |   |  4. Return final text response                             | |
+    |   +--------------------+---------------------+-----------------+ |
+    |                        |                     |                   |
+    |                        v                     v                   |
+    |   +------------------------+   +---------------------------+    |
+    |   |   Gemini 2.5 Flash     |   |    lib/calendar.ts        |    |
+    |   |   (Google AI)          |   |                           |    |
+    |   |                        |   |  getAvailableSlots()      |    |
+    |   |  - Natural language    |   |  createEvent()            |    |
+    |   |  - Decides tool calls  |   |  getEventByName()         |    |
+    |   |  - Generates responses |   +-------------+-------------+    |
+    |   +------------------------+                 |                   |
+    |                                              v                   |
+    |                              +---------------------------+       |
+    |                              |  Google Calendar API v3   |       |
+    |                              |  OAuth2                   |       |
+    |                              |                           |       |
+    |                              |  - Query free/busy        |       |
+    |                              |  - Create events          |       |
+    |                              |  - Search by name         |       |
+    |                              +---------------------------+       |
+    +------------------------------------------------------------------+
+
+### Component Breakdown
+
+**Client Layer**
+The browser handles all voice I/O using the built-in Web Speech API. Speech recognition runs locally for near-zero STT latency. The React UI manages conversation state and renders the chat interface.
+
+**API Layer**
+The core orchestration layer. Receives the full conversation history on every request, passes it to Gemini with tool definitions, and executes any tool calls Gemini requests before returning the final response.
+
+**Gemini 2.5 Flash**
+The reasoning engine. Decides when to ask clarifying questions, when to call calendar tools, and how to handle edge cases like conflict resolution and complex time parsing.
+
+**Calendar Layer**
+Three focused functions talking to Google Calendar API v3 over OAuth2. getAvailableSlots queries free/busy times, createEvent books confirmed meetings with explicit timezone handling, and getEventByName searches by event name for relative scheduling.
+
+**Authentication**
+OAuth2 flow via Google. Tokens are stored in an HTTP-only cookie and passed server-side on each calendar request.
