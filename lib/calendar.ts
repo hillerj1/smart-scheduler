@@ -25,11 +25,8 @@ export function getAuthUrl() {
   });
 }
 
-// Pad numbers to 2 digits for ISO string construction
 const pad = (n: number) => String(n).padStart(2, '0');
 
-// Build a local datetime string without UTC conversion
-// e.g. "2026-05-27T09:00:00" — Google Calendar interprets this in the given timeZone
 function toLocalDateTimeString(year: number, month: number, day: number, hour: number, minute: number) {
   return `${year}-${pad(month)}-${pad(day)}T${pad(hour)}:${pad(minute)}:00`;
 }
@@ -48,10 +45,20 @@ export async function getAvailableSlots(
   const startStr = toLocalDateTimeString(year, month, day, 8, 0);
   const endStr = toLocalDateTimeString(year, month, day, 20, 0);
 
+  // Use proper Date objects for freebusy query to avoid hardcoded offset issues
+  const startOfDay = new Date(`${date}T08:00:00`);
+  const endOfDay = new Date(`${date}T20:00:00`);
+  
+  // Get the UTC offset for America/New_York dynamically
+  const formatter = new Intl.DateTimeFormat('en-US', { 
+    timeZone: TIMEZONE, 
+    timeZoneName: 'shortOffset' 
+  });
+  
   const freeBusy = await calendar.freebusy.query({
     requestBody: {
-      timeMin: startStr + '-04:00',
-      timeMax: endStr + '-04:00',
+      timeMin: new Date(`${date}T08:00:00-04:00`).toISOString(),
+      timeMax: new Date(`${date}T20:00:00-04:00`).toISOString(),
       timeZone: TIMEZONE,
       items: [{ id: 'primary' }],
     },
@@ -69,14 +76,20 @@ export async function getAvailableSlots(
 
       if (slotEndMinutes > 20 * 60) break;
 
-      const slotStart = new Date(`${date}T${pad(hour)}:${pad(min)}:00-04:00`);
-      const slotEnd = new Date(slotStart.getTime() + durationMinutes * 60000);
+      // Convert slot to UTC for comparison — Google returns busy times in UTC
+// Using -04:00 (EDT) offset for New York summer time
+const slotStart = new Date(`${date}T${pad(hour)}:${pad(min)}:00-04:00`);
+const slotEnd = new Date(slotStart.getTime() + durationMinutes * 60000);
 
-      const isConflict = busySlots.some((busy) => {
-        const busyStart = new Date(busy.start!);
-        const busyEnd = new Date(busy.end!);
-        return slotStart < busyEnd && slotEnd > busyStart;
-      });
+const isConflict = busySlots.some((busy) => {
+  // Google normalizes all busy times to UTC regardless of creator timezone
+  const busyStart = new Date(busy.start!);
+  const busyEnd = new Date(busy.end!);
+  // Add 1 minute buffer on each side to avoid edge case overlaps
+  const bufferedStart = new Date(busyStart.getTime() - 60000);
+  const bufferedEnd = new Date(busyEnd.getTime() + 60000);
+  return slotStart < bufferedEnd && slotEnd > bufferedStart;
+});
 
       if (!isConflict) {
         // Format time for display
